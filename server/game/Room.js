@@ -41,6 +41,9 @@ export default class Room {
     this.solved = {};     // { playerId: boolean }
     this.solveTime = {};  // { playerId: timestamp | null }
 
+    // Rematch tracking
+    this.rematchRequests = new Set();
+
     // Add creator
     this._addPlayer(creatorId, creatorName);
 
@@ -53,6 +56,7 @@ export default class Room {
     // Callbacks
     this.onBroadcast = null;   // (playerId, message) => void
     this.onRoomFinished = null; // (roomId) => void
+    this.onRematchReady = null; // (roomId, players) => void
   }
 
   _addPlayer(id, name) {
@@ -137,6 +141,14 @@ export default class Room {
   reconnect(playerId, ws) {
     if (!this.players.has(playerId)) return { error: 'Not in this room' };
 
+    const player = this.players.get(playerId);
+
+    // Clear disconnect timeout if exists
+    if (player.disconnectTimeout) {
+      clearTimeout(player.disconnectTimeout);
+      player.disconnectTimeout = null;
+    }
+
     this.setWebSocket(playerId, ws);
 
     // Send current state to reconnecting player
@@ -155,6 +167,15 @@ export default class Room {
     };
 
     this.send(playerId, stateMsg);
+
+    // Notify opponent that player reconnected
+    if (opponentId) {
+      this.send(opponentId, {
+        type: 'opponent_reconnected',
+        message: 'Opponent reconnected!',
+      });
+    }
+
     return { success: true };
   }
 
@@ -235,6 +256,10 @@ export default class Room {
     }
     if (!this.players.has(playerId)) {
       return { error: 'Not in this room' };
+    }
+    const player = this.players.get(playerId);
+    if (!player.connected) {
+      return { error: 'You are disconnected. Please refresh to reconnect.' };
     }
     if (this.solved[playerId]) {
       return { error: 'Already solved' };
@@ -416,24 +441,86 @@ export default class Room {
     }
 
     if (this.state === STATES.PLAYING || this.state === STATES.WORD_SELECTION) {
-      // Give 30 seconds to reconnect, then opponent wins
-      setTimeout(() => {
+      // Give 60 seconds to reconnect (increased from 30)
+      const disconnectTimeout = setTimeout(() => {
         const p = this.players.get(playerId);
         if (p && !p.connected && this.state !== STATES.FINISHED) {
           const opponentId = this.getOpponentId(playerId);
           this._finishGame(opponentId, 'Opponent disconnected');
         }
-      }, 30_000);
+      }, 60_000);
+
+      // Store timeout so we can clear it on reconnection
+      player.disconnectTimeout = disconnectTimeout;
 
       // Notify opponent
       const opponentId = this.getOpponentId(playerId);
       if (opponentId) {
         this.send(opponentId, {
           type: 'opponent_disconnected',
-          message: 'Opponent disconnected. Waiting 30s for reconnection...',
+          message: 'Opponent disconnected. You can continue playing while waiting for reconnection (60s).',
         });
       }
     }
+  }
+
+  // ─── Rematch ─────────────────────────────────────────
+  requestRematch(playerId) {
+    if (this.state !== STATES.FINISHED) {
+      return { error: 'Game not finished' };
+    }
+    if (!this.players.has(playerId)) {
+      return { error: 'Not in this room' };
+    }
+    if (this.rematchRequests.has(playerId)) {
+      return { error: 'Already requested rematch' };
+    }
+
+    this.rematchRequests.add(playerId);
+
+    // Notify other player
+    const opponentId = this.getOpponentId(playerId);
+    if (opponentId) {
+      this.send(opponentId, {
+        type: 'opponent_requested_rematch',
+      });
+    }
+
+    // Check if both players requested rematch
+    if (this.rematchRequests.size === 2) {
+      this._startRematch();
+    }
+
+    return { success: true };
+  }
+
+  _startRematch() {
+    // Reset game state
+    this.state = STATES.WORD_SELECTION;
+    this.words = {};
+    this.boards = {};
+    this.guessCount = {};
+    this.solved = {};
+    this.solveTime = {};
+    this.rematchRequests.clear();
+
+    // Reset per-player state
+    for (const playerId of this.playerOrder) {
+      this.boards[playerId] = [];
+      this.guessCount[playerId] = 0;
+      this.solved[playerId] = false;
+      this.solveTime[playerId] = null;
+    }
+
+    // Notify both players
+    this.broadcastAll({
+      type: 'rematch_start',
+    });
+
+    // Start word selection timer
+    this._startWordSelectionTimer();
+
+    console.log(`[Room] Rematch started in room ${this.id}`);
   }
 
   // ─── Cleanup ─────────────────────────────────────────

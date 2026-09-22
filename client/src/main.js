@@ -4,6 +4,7 @@
  * Manages screen transitions, WebSocket events, and Telegram SDK integration.
  */
 import GameSocket from './websocket.js';
+import NameInputScreen from './screens/NameInputScreen.js';
 import LobbyScreen from './screens/LobbyScreen.js';
 import WordSelectionScreen from './screens/WordSelectionScreen.js';
 import GameScreen from './screens/GameScreen.js';
@@ -40,15 +41,20 @@ class App {
       // Get user info
       const user = this.tg.initDataUnsafe?.user;
       if (user) {
-        this.playerName = user.first_name || user.username || 'Player';
         this.playerId = `tg_${user.id}`;
+        // Don't auto-set name, let user choose or use cached name
       }
     }
 
     // Fallback for non-Telegram environments (development)
     if (!this.playerId) {
       this.playerId = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      this.playerName = 'Player';
+    }
+
+    // Check for cached name
+    const cachedName = localStorage.getItem('wordle_duel_player_name');
+    if (cachedName) {
+      this.playerName = cachedName;
     }
 
     // Connect WebSocket
@@ -65,37 +71,54 @@ class App {
       return;
     }
 
-    // Authenticate
+    // Authenticate (use cached name if available, otherwise placeholder)
     this.socket.send('auth', {
       playerId: this.playerId,
-      playerName: this.playerName,
+      playerName: this.playerName || 'Player',
     });
 
     // Bind events
     this._bindSocketEvents();
 
-    // Wait for auth confirmation then show lobby
+    // Wait for auth confirmation then show name input or lobby
     this.socket.on('auth_ok', (data) => {
       this.playerId = data.playerId;
-      this.playerName = data.playerName;
 
       // Check for deep link (startapp parameter)
       const startParam = this.tg?.initDataUnsafe?.start_param;
       const urlParams = new URLSearchParams(window.location.search);
       const roomFromUrl = urlParams.get('room') || startParam;
 
-      this._showLobby();
+      // Handle reconnection
+      if (data.reconnected && data.roomId) {
+        this.roomId = data.roomId;
+        this.showToast('Reconnected to game!');
+        // Wait for room state to restore
+        return;
+      }
 
-      if (roomFromUrl) {
-        // Auto-join room from invite link
-        setTimeout(() => {
-          this.screens.lobby.autoJoin(roomFromUrl);
-        }, 300);
+      // Show name input if no name, otherwise go to lobby
+      if (!this.playerName) {
+        this._showNameInput();
+      } else {
+        this._showLobby();
+        if (roomFromUrl) {
+          // Auto-join room from invite link
+          setTimeout(() => {
+            this.screens.lobby.autoJoin(roomFromUrl);
+          }, 300);
+        }
       }
     });
   }
 
   // ─── Screen Management ───────────────────────────────
+  _showNameInput() {
+    const nameInput = new NameInputScreen(this);
+    this.screens.nameInput = nameInput;
+    this._showScreen('nameInput', nameInput.render());
+  }
+
   _showScreen(name, element) {
     const app = document.getElementById('app');
 
@@ -239,11 +262,34 @@ class App {
     // Opponent disconnected
     this.socket.on('opponent_disconnected', (data) => {
       this.showToast(data.message || 'Opponent disconnected');
+      // Don't block gameplay - allow the remaining player to continue
+    });
+
+    // Opponent reconnected
+    this.socket.on('opponent_reconnected', (data) => {
+      this.showToast(data.message || 'Opponent reconnected!');
+    });
+
+    // Room state (for reconnection)
+    this.socket.on('room_state', (data) => {
+      this._handleRoomState(data);
     });
 
     // Game over
     this.socket.on('game_over', (data) => {
       this._showResult(data);
+    });
+
+    // Rematch events
+    this.socket.on('opponent_requested_rematch', () => {
+      if (this.screens.result) {
+        this.screens.result.onOpponentRequestedRematch();
+      }
+    });
+
+    this.socket.on('rematch_start', () => {
+      this._showWordSelection();
+      this.showToast('Rematch started!');
     });
 
     // Errors
@@ -293,6 +339,43 @@ class App {
   _updateLoadingText(text) {
     const el = document.querySelector('.loading-text');
     if (el) el.textContent = text;
+  }
+
+  _handleRoomState(data) {
+    this.roomId = data.roomId;
+    this.opponentName = data.opponentName;
+
+    // Restore screen based on game state
+    switch (data.state) {
+      case 'WORD_SELECTION':
+        this._showWordSelection();
+        if (data.wordSelected) {
+          this.screens.wordSelection.onWordAccepted();
+        }
+        if (data.opponentReady) {
+          this.screens.wordSelection.onOpponentReady();
+        }
+        break;
+      case 'PLAYING':
+        this._showGame(data.timeRemaining);
+        // Restore board state
+        if (this.screens.game) {
+          data.board.forEach((row, rowIndex) => {
+            row.forEach((tile, colIndex) => {
+              this.screens.game.grid.restoreTile(rowIndex, colIndex, tile);
+            });
+          });
+          this.screens.game.grid.currentRow = data.guessCount;
+          this.screens.game.grid.currentCol = 0;
+        }
+        break;
+      case 'FINISHED':
+        // Shouldn't happen, but handle gracefully
+        this._showLobby();
+        break;
+      default:
+        this._showLobby();
+    }
   }
 }
 

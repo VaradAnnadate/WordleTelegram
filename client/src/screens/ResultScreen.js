@@ -66,7 +66,33 @@ export default class ResultScreen {
 
   _bindEvents(data) {
     this.element.querySelector('#btn-play-again').addEventListener('click', () => {
-      this.app.resetToLobby();
+      this._requestRematch(data);
+    });
+  }
+
+  _requestRematch(data) {
+    const btn = this.element.querySelector('#btn-play-again');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-icon">⏳</span> Waiting for opponent...';
+
+    // Send rematch request to server
+    this.app.socket.send('rematch_request', {
+      roomId: this.app.roomId,
+    });
+  }
+
+  onOpponentRequestedRematch() {
+    const btn = this.element.querySelector('#btn-play-again');
+    btn.innerHTML = '<span class="btn-icon">⚔️</span> Accept Rematch';
+    btn.disabled = false;
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-secondary');
+
+    // Remove old listener and add new one
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener('click', () => {
+      this._requestRematch();
     });
   }
 

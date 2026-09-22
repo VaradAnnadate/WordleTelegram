@@ -167,4 +167,17 @@ export default class Grid {
     this.locked = false;
     this.render();
   }
+
+  /**
+   * Restore a tile's state (for reconnection)
+   */
+  restoreTile(row, col, tileData) {
+    if (row >= this.rows || col >= this.cols) return;
+    const tile = this.tiles[row][col];
+    tile.textContent = tileData.letter.toUpperCase();
+    tile.classList.add('filled');
+    if (tileData.status) {
+      tile.classList.add(tileData.status);
+    }
+  }
 }

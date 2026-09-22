@@ -90,6 +90,19 @@ wss.on('connection', (ws, req) => {
         playerId = msg.playerId || `player_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         playerName = msg.playerName || 'Anonymous';
         console.log(`[WS] Authenticated: ${playerName} (${playerId})`);
+
+        // Check if player was in a room (reconnection)
+        const room = await roomManager.getRoomForPlayer(playerId);
+        if (room) {
+          const result = room.reconnect(playerId, ws);
+          if (result.success) {
+            currentRoom = room;
+            console.log(`[WS] ${playerName} reconnected to room ${room.id}`);
+            sendMsg({ type: 'auth_ok', playerId, playerName, reconnected: true, roomId: room.id });
+            return;
+          }
+        }
+
         sendMsg({ type: 'auth_ok', playerId, playerName });
         break;
       }
@@ -172,6 +185,18 @@ wss.on('connection', (ws, req) => {
 
       case 'ping': {
         sendMsg({ type: 'pong' });
+        break;
+      }
+
+      case 'rematch_request': {
+        if (!currentRoom || !playerId) {
+          sendMsg({ type: 'error', error: 'Not in a room' });
+          return;
+        }
+        const result = currentRoom.requestRematch(playerId);
+        if (result.error) {
+          sendMsg({ type: 'error', error: result.error });
+        }
         break;
       }
 

@@ -165,6 +165,49 @@ html, body {
   color: var(--text-hint);
 }
 
+/* ─── Name Input Screen ─────────────────────────────── */
+.name-input-screen {
+  padding: 0 20px;
+  padding-top: env(safe-area-inset-top, 60px);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.name-input-header {
+  text-align: center;
+  padding: 40px 0 60px;
+}
+
+.name-input-title {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.name-input-subtitle {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+.name-input-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.name-input {
+  padding: 16px 20px;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 1px;
+  text-transform: capitalize;
+}
+
 /* ─── Lobby Screen ──────────────────────────────────── */
 .lobby-screen {
   padding: 0 20px;
