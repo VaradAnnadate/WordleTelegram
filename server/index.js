@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import RoomManager from './game/RoomManager.js';
 import TelegramBot from './bot.js';
+import redisClient from './redisClient.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -29,6 +30,9 @@ const server = createServer(app);
 // ─── Room Manager ──────────────────────────────────────
 const roomManager = new RoomManager();
 
+// Initialize Redis
+await redisClient.connect();
+
 // ─── Health Check ──────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', rooms: roomManager.getStats() });
@@ -48,7 +52,7 @@ wss.on('connection', (ws, req) => {
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
 
-  ws.on('message', (data) => {
+  ws.on('message', async (data) => {
     let msg;
     try {
       msg = JSON.parse(data.toString());
@@ -57,7 +61,7 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
-    handleMessage(ws, msg);
+    await handleMessage(ws, msg);
   });
 
   ws.on('close', () => {
@@ -77,7 +81,7 @@ wss.on('connection', (ws, req) => {
     }
   }
 
-  function handleMessage(ws, msg) {
+  async function handleMessage(ws, msg) {
     switch (msg.type) {
       case 'auth': {
         // Simple auth — in production, validate Telegram initData here
@@ -93,7 +97,7 @@ wss.on('connection', (ws, req) => {
           sendMsg({ type: 'error', error: 'Not authenticated' });
           return;
         }
-        currentRoom = roomManager.createRoom(playerId, playerName, msg.options || {});
+        currentRoom = await roomManager.createRoom(playerId, playerName, msg.options || {});
         currentRoom.setWebSocket(playerId, ws);
         console.log(`[Room] Created: ${currentRoom.id} by ${playerName}`);
         sendMsg({
@@ -114,7 +118,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const result = roomManager.joinRoom(roomId, playerId, playerName);
+        const result = await roomManager.joinRoom(roomId, playerId, playerName);
         if (result.error) {
           sendMsg({ type: 'error', error: result.error });
           return;
@@ -203,10 +207,10 @@ server.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('\nShutting down...');
   bot.stop();
-  roomManager.destroy();
+  await roomManager.destroy();
   wss.close();
   server.close();
   process.exit(0);

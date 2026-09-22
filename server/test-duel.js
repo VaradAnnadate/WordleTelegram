@@ -3,9 +3,13 @@ import { createServer } from 'http';
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import RoomManager from './game/RoomManager.js';
+import redisClient from './redisClient.js';
 
 async function runTest() {
   console.log('🧪 Starting Wordle Duel End-to-End Test...\n');
+
+  // Initialize Redis
+  await redisClient.connect();
 
   // Setup test server
   const app = express();
@@ -18,7 +22,7 @@ async function runTest() {
     let playerName = null;
     let currentRoom = null;
 
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
       const msg = JSON.parse(data.toString());
 
       if (msg.type === 'auth') {
@@ -26,11 +30,11 @@ async function runTest() {
         playerName = msg.playerName;
         ws.send(JSON.stringify({ type: 'auth_ok', playerId, playerName }));
       } else if (msg.type === 'create_room') {
-        currentRoom = roomManager.createRoom(playerId, playerName);
+        currentRoom = await roomManager.createRoom(playerId, playerName);
         currentRoom.setWebSocket(playerId, ws);
         ws.send(JSON.stringify({ type: 'room_created', roomId: currentRoom.id }));
       } else if (msg.type === 'join_room') {
-        const result = roomManager.joinRoom(msg.roomId, playerId, playerName);
+        const result = await roomManager.joinRoom(msg.roomId, playerId, playerName);
         if (result.error) return ws.send(JSON.stringify({ type: 'error', error: result.error }));
         currentRoom = result.room;
         currentRoom.setWebSocket(playerId, ws);
@@ -149,7 +153,7 @@ async function runTest() {
   p2.ws.close();
   wss.close();
   server.close();
-  roomManager.destroy();
+  await roomManager.destroy();
   process.exit(0);
 }
 
