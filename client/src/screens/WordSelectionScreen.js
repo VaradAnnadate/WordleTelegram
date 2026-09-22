@@ -73,6 +73,11 @@ export default class WordSelectionScreen {
         this._submitWord();
       } else {
         this.app.showToast('Word must be 5 letters');
+        const tiles = this.element.querySelectorAll('.ws-tile');
+        tiles.forEach(tile => {
+          tile.classList.add('shake');
+          setTimeout(() => tile.classList.remove('shake'), 500);
+        });
       }
     } else if (/^[a-z]$/i.test(key) && this.word.length < 5) {
       this._addLetter(key.toLowerCase());
@@ -133,7 +138,16 @@ export default class WordSelectionScreen {
   }
 
   _submitWord() {
-    if (this.submitted || this.word.length !== 5) return;
+    if (this.submitted) return;
+    if (this.word.length !== 5) {
+      this.app.showToast('Word must be 5 letters');
+      const tiles = this.element.querySelectorAll('.ws-tile');
+      tiles.forEach(tile => {
+        tile.classList.add('shake');
+        setTimeout(() => tile.classList.remove('shake'), 500);
+      });
+      return;
+    }
 
     this.app.socket.send('select_word', { word: this.word });
     // UI feedback handled in onWordAccepted and onError

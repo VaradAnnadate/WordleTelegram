@@ -50,10 +50,6 @@ export default class ResultScreen {
           <span class="btn-icon">🔄</span>
           Play Again
         </button>
-        <button id="btn-share-result" class="btn btn-secondary">
-          <span class="btn-icon">📤</span>
-          Share Result
-        </button>
       </div>
     `;
 
@@ -72,40 +68,9 @@ export default class ResultScreen {
     this.element.querySelector('#btn-play-again').addEventListener('click', () => {
       this.app.resetToLobby();
     });
-
-    this.element.querySelector('#btn-share-result').addEventListener('click', () => {
-      this._shareResult(data);
-    });
   }
 
-  _shareResult(data) {
-    const emoji = data.result === 'win' ? '🏆' : data.result === 'lose' ? '😢' : '🤝';
-    const resultText = data.result === 'win' ? 'Won' : data.result === 'lose' ? 'Lost' : 'Drew';
 
-    // Build a Wordle-style share text with emoji blocks
-    let shareText = `${emoji} Wordle Duel — ${resultText}!\n\n`;
-    shareText += `My guesses: ${data.yourGuesses || 0}/6\n`;
-    shareText += `Opponent: ${data.opponentGuesses || 0}/6\n\n`;
-
-    // Build emoji board for your guesses
-    if (data.yourBoard) {
-      for (const row of data.yourBoard) {
-        shareText += row.map(t => {
-          if (t.status === 'correct') return '🟩';
-          if (t.status === 'present') return '🟨';
-          return '⬛';
-        }).join('') + '\n';
-      }
-    }
-
-    if (navigator.share) {
-      navigator.share({ text: shareText }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(shareText).then(() => {
-        this.app.showToast('Result copied!');
-      }).catch(() => {});
-    }
-  }
 
   _showConfetti() {
     const container = document.getElementById('confetti-container');

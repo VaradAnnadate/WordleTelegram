@@ -22,7 +22,6 @@ export default class LobbyScreen {
 
       <div class="lobby-actions">
         <button id="btn-create" class="btn btn-primary">
-          <span class="btn-icon">⚔️</span>
           Create Game
         </button>
       </div>
@@ -31,7 +30,7 @@ export default class LobbyScreen {
         <div class="join-divider"><span>or join a game</span></div>
         <div class="join-input-group">
           <input id="join-code-input" class="input" type="text" placeholder="Enter room code" maxlength="8" autocomplete="off" spellcheck="false" />
-          <button id="btn-join" class="btn btn-secondary">Join</button>
+          <button id="btn-join" class="btn btn-primary">Join</button>
         </div>
       </div>
 
@@ -52,7 +51,7 @@ export default class LobbyScreen {
           <span class="btn-icon">📤</span>
           Share Invite Link
         </button>
-        <button id="btn-cancel-wait" class="btn btn-secondary" style="margin-top: 8px;">
+        <button id="btn-cancel-wait" class="btn btn-secondary">
           Cancel
         </button>
       </div>
@@ -123,11 +122,8 @@ export default class LobbyScreen {
   _shareInvite() {
     if (!this.roomId) return;
 
-    // Use Telegram bot deep link if bot username is provided, or direct web link
-    const botName = window.BOT_USERNAME || (window.Telegram?.WebApp?.initDataUnsafe?.bot_username);
-    const link = botName
-      ? `https://t.me/${botName}?startapp=${this.roomId}`
-      : `${window.location.origin}?room=${this.roomId}`;
+    // Use the specific Telegram web app link
+    const link = `https://t.me/varad_wordle_bot/wordle?startapp=${this.roomId}`;
 
     const text = `I challenge you to a Wordle Duel! 🟩🟨⬛\nRoom: ${this.roomId.toUpperCase()}\nPlay: ${link}`;
 

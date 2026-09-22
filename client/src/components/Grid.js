@@ -69,12 +69,13 @@ export default class Grid {
   }
 
   /**
-   * Get the current row's word
+   * Get the current row's word (only filled letters)
    */
   getCurrentWord() {
     let word = '';
-    for (let c = 0; c < this.cols; c++) {
-      word += (this.tiles[this.currentRow][c].textContent || '').toLowerCase();
+    for (let c = 0; c < this.currentCol; c++) {
+      const letter = (this.tiles[this.currentRow][c].textContent || '').toLowerCase().trim();
+      word += letter;
     }
     return word;
   }

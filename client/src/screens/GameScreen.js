@@ -93,7 +93,11 @@ export default class GameScreen {
     }
 
     const word = this.grid.getCurrentWord();
-    if (word.length !== 5) return;
+    if (word.length !== 5) {
+      this.grid.shakeCurrentRow();
+      this.app.showToast('Not enough letters');
+      return;
+    }
 
     this.processing = true;
     this.app.socket.send('guess', { word });

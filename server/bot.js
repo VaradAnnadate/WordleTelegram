@@ -61,6 +61,12 @@ export class TelegramBot {
   }
 
   async _handleUpdate(update) {
+    // Handle callback queries (button clicks)
+    if (update.callback_query) {
+      await this._handleCallbackQuery(update.callback_query);
+      return;
+    }
+
     const msg = update.message;
     if (!msg || !msg.text) return;
 
@@ -68,16 +74,80 @@ export class TelegramBot {
     const text = msg.text.trim();
     const senderName = msg.from.first_name || 'Player';
 
+    if (text === '/start' || text === '/start@varad_wordle_bot') {
+      const appUrl = `https://t.me/varad_wordle_bot/wordle`;
+      const buttonText = 'Play Wordle Duel';
+
+      const welcomeText = `👋 Hey *${this._escapeMarkdown(senderName)}*!\n\n` +
+        `Welcome to *Wordle Duel* 🟩🟨⬛\n\n` +
+        `• 1v1 turn-based challenge with a friend\n` +
+        `• Pick a secret 5-letter word for each other\n` +
+        `• Race to solve it in 6 tries with a 3-minute timer!\n\n` +
+        `Tap the button below to start playing!`;
+
+      await this._sendMessage(chatId, welcomeText, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: buttonText,
+                url: appUrl,
+              },
+            ],
+            [
+              {
+                text: '📖 How to Play',
+                callback_data: 'help',
+              },
+            ],
+          ],
+        },
+      });
+    } else if (text.startsWith('/start ')) {
+      // Handle /start with parameter (room code)
+      const parts = text.split(' ');
+      const startParam = parts[1] || '';
+
+      const appUrl = `https://t.me/varad_wordle_bot/wordle?startapp=${startParam}`;
+      const buttonText = `Join Duel #${startParam}`;
+
+      const welcomeText = `👋 Hey *${this._escapeMarkdown(senderName)}*!\n\n` +
+        `Welcome to *Wordle Duel* 🟩🟨⬛\n\n` +
+        `• 1v1 turn-based challenge with a friend\n` +
+        `• Pick a secret 5-letter word for each other\n` +
+        `• Race to solve it in 6 tries with a 3-minute timer!\n\n` +
+        `👉 You were invited to join room *${startParam}*!`;
+
+      await this._sendMessage(chatId, welcomeText, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: buttonText,
+                url: appUrl,
+              },
+            ],
+            [
+              {
+                text: '📖 How to Play',
+                callback_data: 'help',
+              },
+            ],
+          ],
+        },
+      });
+    } else if (text === '/help') {
+
     if (text.startsWith('/start')) {
       const parts = text.split(' ');
       const startParam = parts[1] || ''; // room code if invited via link
 
-      let appUrl = this.webAppUrl || 'http://localhost:3000';
-      let buttonText = '⚔️ Play Wordle Duel';
+      // Use the specific Telegram web app URL
+      const appUrl = `https://t.me/varad_wordle_bot/wordle${startParam ? `?startapp=${startParam}` : ''}`;
+      let buttonText = 'Play Wordle Duel';
 
       if (startParam) {
-        appUrl = `${appUrl}?room=${encodeURIComponent(startParam)}`;
-        buttonText = `⚔️ Join Duel #${startParam}`;
+        buttonText = `Join Duel #${startParam}`;
       }
 
       const welcomeText = `👋 Hey *${this._escapeMarkdown(senderName)}*!\n\n` +
@@ -93,7 +163,7 @@ export class TelegramBot {
             [
               {
                 text: buttonText,
-                web_app: { url: appUrl },
+                url: appUrl,
               },
             ],
             [
@@ -105,7 +175,7 @@ export class TelegramBot {
           ],
         },
       });
-    } else if (text === '/help') {
+    } else if (text === '/help' || text === '/help@varad_wordle_bot') {
       const helpText = `*Wordle Duel Rules:*\n\n` +
         `1. Create a room and send the invite link to a friend.\n` +
         `2. Both players pick a valid 5-letter word to challenge each other.\n` +
@@ -131,6 +201,38 @@ export class TelegramBot {
       });
     } catch (err) {
       console.error('[Bot] Send message error:', err.message);
+    }
+  }
+
+  async _handleCallbackQuery(callbackQuery) {
+    const chatId = callbackQuery.message.chat.id;
+    const data = callbackQuery.data;
+
+    if (data === 'help') {
+      const helpText = `*Wordle Duel Rules:*\n\n` +
+        `1. Create a room and send the invite link to a friend.\n` +
+        `2. Both players pick a valid 5-letter word to challenge each other.\n` +
+        `3. Both players race to guess their assigned word in 6 attempts.\n` +
+        `4. Timer lasts 3 minutes.\n` +
+        `5. First to guess correctly wins!`;
+
+      await this._answerCallbackQuery(callbackQuery.id);
+      await this._sendMessage(chatId, helpText);
+    }
+  }
+
+  async _answerCallbackQuery(callbackQueryId, text = '') {
+    try {
+      await fetch(`${this.baseUrl}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callback_query_id: callbackQueryId,
+          text,
+        }),
+      });
+    } catch (err) {
+      console.error('[Bot] Answer callback query error:', err.message);
     }
   }
 
