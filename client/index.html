@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Challenge a friend to a Wordle duel! Pick a word, race to solve, first to guess wins." />
+  <title>Wordle Duel</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Screens are rendered dynamically by main.js -->
+    <div id="loading-screen" class="screen active">
+      <div class="loading-container">
+        <div class="loading-logo">
+          <span class="logo-letter" style="--delay: 0">W</span>
+          <span class="logo-letter" style="--delay: 1">O</span>
+          <span class="logo-letter" style="--delay: 2">R</span>
+          <span class="logo-letter" style="--delay: 3">D</span>
+          <span class="logo-letter" style="--delay: 4">L</span>
+          <span class="logo-letter" style="--delay: 5">E</span>
+        </div>
+        <div class="loading-subtitle">DUEL</div>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Connecting...</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <div id="confetti-container"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
