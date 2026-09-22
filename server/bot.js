@@ -136,45 +136,6 @@ export class TelegramBot {
           ],
         },
       });
-    } else if (text === '/help') {
-
-    if (text.startsWith('/start')) {
-      const parts = text.split(' ');
-      const startParam = parts[1] || ''; // room code if invited via link
-
-      // Use the specific Telegram web app URL
-      const appUrl = `https://t.me/varad_wordle_bot/wordle${startParam ? `?startapp=${startParam}` : ''}`;
-      let buttonText = 'Play Wordle Duel';
-
-      if (startParam) {
-        buttonText = `Join Duel #${startParam}`;
-      }
-
-      const welcomeText = `👋 Hey *${this._escapeMarkdown(senderName)}*!\n\n` +
-        `Welcome to *Wordle Duel* 🟩🟨⬛\n\n` +
-        `• 1v1 turn-based challenge with a friend\n` +
-        `• Pick a secret 5-letter word for each other\n` +
-        `• Race to solve it in 6 tries with a 3-minute timer!\n\n` +
-        (startParam ? `👉 You were invited to join room *${startParam}*!` : `Tap below to start playing!`);
-
-      await this._sendMessage(chatId, welcomeText, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: buttonText,
-                url: appUrl,
-              },
-            ],
-            [
-              {
-                text: '📖 How to Play',
-                callback_data: 'help',
-              },
-            ],
-          ],
-        },
-      });
     } else if (text === '/help' || text === '/help@varad_wordle_bot') {
       const helpText = `*Wordle Duel Rules:*\n\n` +
         `1. Create a room and send the invite link to a friend.\n` +
