@@ -28,6 +28,8 @@ class RedisClient {
           const delay = Math.min(times * 50, 2000);
           return delay;
         },
+        connectTimeout: 5000, // 5 second connection timeout
+        lazyConnect: false,
       });
 
       this.redis.on('connect', () => {
@@ -44,14 +46,21 @@ class RedisClient {
         }
       });
 
-      // Test connection
-      await this.redis.ping();
+      // Test connection with timeout
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timeout')), 5000)
+      );
+
+      await Promise.race([this.redis.ping(), timeout]);
       this.connected = true;
     } catch (err) {
       console.error('❌ [Redis] Connection failed:', err.message);
       console.log('⚠️  [Redis] Falling back to in-memory storage');
       this.useFallback = true;
-      this.redis = null;
+      if (this.redis) {
+        this.redis.disconnect();
+        this.redis = null;
+      }
     }
   }
 

@@ -30,8 +30,10 @@ const server = createServer(app);
 // ─── Room Manager ──────────────────────────────────────
 const roomManager = new RoomManager();
 
-// Initialize Redis
-await redisClient.connect();
+// Initialize Redis (non-blocking)
+redisClient.connect().catch(err => {
+  console.error('Redis connection failed:', err.message);
+});
 
 // ─── Health Check ──────────────────────────────────────
 app.get('/health', (req, res) => {

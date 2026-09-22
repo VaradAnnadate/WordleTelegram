@@ -23,7 +23,11 @@ export default class RoomManager {
       const oldRoom = this.rooms.get(oldRoomId);
       if (oldRoom && oldRoom.state === 'WAITING') {
         this.rooms.delete(oldRoomId);
-        await redisClient.del(`${ROOM_PREFIX}${oldRoomId}`);
+        try {
+          await redisClient.del(`${ROOM_PREFIX}${oldRoomId}`);
+        } catch (err) {
+          console.error('[RoomManager] Redis delete error:', err.message);
+        }
       }
     }
 
@@ -38,12 +42,20 @@ export default class RoomManager {
           for (const pid of r.playerOrder) {
             if (this.playerRooms.get(pid) === id) {
               this.playerRooms.delete(pid);
-              await redisClient.del(`${PLAYER_PREFIX}${pid}`);
+              try {
+                await redisClient.del(`${PLAYER_PREFIX}${pid}`);
+              } catch (err) {
+                console.error('[RoomManager] Redis delete error:', err.message);
+              }
             }
           }
           r.cleanup();
           this.rooms.delete(id);
-          await redisClient.del(`${ROOM_PREFIX}${id}`);
+          try {
+            await redisClient.del(`${ROOM_PREFIX}${id}`);
+          } catch (err) {
+            console.error('[RoomManager] Redis delete error:', err.message);
+          }
         }
       }, 60_000); // Keep room for 1 minute after finish for result viewing
     };
@@ -51,9 +63,13 @@ export default class RoomManager {
     this.rooms.set(roomId, room);
     this.playerRooms.set(playerId, roomId);
 
-    // Persist to Redis with TTL
-    await redisClient.set(`${ROOM_PREFIX}${roomId}`, room.toJSON(), 300); // 5 minutes
-    await redisClient.set(`${PLAYER_PREFIX}${playerId}`, roomId, 300);
+    // Persist to Redis with TTL (with error handling)
+    try {
+      await redisClient.set(`${ROOM_PREFIX}${roomId}`, room.toJSON(), 300); // 5 minutes
+      await redisClient.set(`${PLAYER_PREFIX}${playerId}`, roomId, 300);
+    } catch (err) {
+      console.error('[RoomManager] Redis set error:', err.message);
+    }
 
     return room;
   }
@@ -64,18 +80,26 @@ export default class RoomManager {
 
     // If not in local cache, try Redis
     if (!room) {
-      const roomData = await redisClient.get(`${ROOM_PREFIX}${roomId}`);
-      if (roomData) {
-        // Room exists in Redis but not in memory - this can happen after server restart
-        // We need to reconstruct the room or reject if it's too old
-        const roomAge = Date.now() - roomData.createdAt;
-        if (roomAge > STALE_ROOM_TTL) {
-          await redisClient.del(`${ROOM_PREFIX}${roomId}`);
-          return { error: 'Room not found' };
+      try {
+        const roomData = await redisClient.get(`${ROOM_PREFIX}${roomId}`);
+        if (roomData) {
+          // Room exists in Redis but not in memory - this can happen after server restart
+          // We need to reconstruct the room or reject if it's too old
+          const roomAge = Date.now() - roomData.createdAt;
+          if (roomAge > STALE_ROOM_TTL) {
+            try {
+              await redisClient.del(`${ROOM_PREFIX}${roomId}`);
+            } catch (err) {
+              console.error('[RoomManager] Redis delete error:', err.message);
+            }
+            return { error: 'Room not found' };
+          }
+          // For now, we'll reject and ask the creator to recreate
+          // Full reconstruction would require more complex state restoration
+          return { error: 'Room expired. Please ask the host to create a new room.' };
         }
-        // For now, we'll reject and ask the creator to recreate
-        // Full reconstruction would require more complex state restoration
-        return { error: 'Room expired. Please ask the host to create a new room.' };
+      } catch (err) {
+        console.error('[RoomManager] Redis get error:', err.message);
       }
       return { error: 'Room not found' };
     }
@@ -83,7 +107,11 @@ export default class RoomManager {
     const result = room.join(playerId, playerName);
     if (result.success) {
       this.playerRooms.set(playerId, roomId);
-      await redisClient.set(`${PLAYER_PREFIX}${playerId}`, roomId, 300);
+      try {
+        await redisClient.set(`${PLAYER_PREFIX}${playerId}`, roomId, 300);
+      } catch (err) {
+        console.error('[RoomManager] Redis set error:', err.message);
+      }
     }
 
     return { ...result, room };
@@ -97,13 +125,17 @@ export default class RoomManager {
     const roomId = this.playerRooms.get(playerId);
     if (!roomId) {
       // Try Redis
-      const redisRoomId = await redisClient.get(`${PLAYER_PREFIX}${playerId}`);
-      if (redisRoomId) {
-        const room = this.rooms.get(redisRoomId);
-        if (room) {
-          this.playerRooms.set(playerId, redisRoomId);
-          return room;
+      try {
+        const redisRoomId = await redisClient.get(`${PLAYER_PREFIX}${playerId}`);
+        if (redisRoomId) {
+          const room = this.rooms.get(redisRoomId);
+          if (room) {
+            this.playerRooms.set(playerId, redisRoomId);
+            return room;
+          }
         }
+      } catch (err) {
+        console.error('[RoomManager] Redis get error:', err.message);
       }
       return null;
     }
@@ -124,11 +156,19 @@ export default class RoomManager {
         for (const pid of room.playerOrder) {
           if (this.playerRooms.get(pid) === id) {
             this.playerRooms.delete(pid);
-            await redisClient.del(`${PLAYER_PREFIX}${pid}`);
+            try {
+              await redisClient.del(`${PLAYER_PREFIX}${pid}`);
+            } catch (err) {
+              console.error('[RoomManager] Redis delete error:', err.message);
+            }
           }
         }
         this.rooms.delete(id);
-        await redisClient.del(`${ROOM_PREFIX}${id}`);
+        try {
+          await redisClient.del(`${ROOM_PREFIX}${id}`);
+        } catch (err) {
+          console.error('[RoomManager] Redis delete error:', err.message);
+        }
         console.log(`[RoomManager] Cleaned up stale room: ${id}`);
       }
 
@@ -136,7 +176,11 @@ export default class RoomManager {
       if (room.state === 'FINISHED' && now - room.createdAt > STALE_ROOM_TTL) {
         room.cleanup();
         this.rooms.delete(id);
-        await redisClient.del(`${ROOM_PREFIX}${id}`);
+        try {
+          await redisClient.del(`${ROOM_PREFIX}${id}`);
+        } catch (err) {
+          console.error('[RoomManager] Redis delete error:', err.message);
+        }
       }
     }
   }
